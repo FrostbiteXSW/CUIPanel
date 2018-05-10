@@ -432,6 +432,7 @@ namespace CUIPanel {
 
         /// <summary>设置窗口的大小。</summary>
         /// <param name="width">窗口宽度</param>
+        /// <param name="height">窗口高度</param>
         public void SetWindowSize(int width, int height) {
             EnterLock(_globalLock);
             // 获得缓冲区锁，临界区开始
