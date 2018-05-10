@@ -1,0 +1,16 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CUIPanel", "CUIPanel\CUIPanel.csproj", "{B77CDCC9-1F79-4D31-97E3-B79D972989BC}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{B77CDCC9-1F79-4D31-97E3-B79D972989BC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B77CDCC9-1F79-4D31-97E3-B79D972989BC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B77CDCC9-1F79-4D31-97E3-B79D972989BC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B77CDCC9-1F79-4D31-97E3-B79D972989BC}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
