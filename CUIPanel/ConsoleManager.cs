@@ -20,9 +20,8 @@ namespace CUIPanel {
         private char[,] _panelBuffer;
         /// <summary>获取面板缓冲区的浅表副本</summary>
         public char[,] PanelBuffer => (char[,])_panelBuffer.Clone();
-
-        /// <summary>缓冲区互斥锁</summary>
-        private SpinLock _globalLock = new SpinLock();
+        /// <summary>指示面板缓冲区是否有过更改（供 <see cref="PassiveUpdate(ConsoleManager)"/> 方法使用）</summary>
+        private bool _panelBufferChanged = false;
 
         /// <summary>当前面板默认前景色</summary>
         private readonly ConsoleColor _defaultfgColor = Console.ForegroundColor;
@@ -49,74 +48,6 @@ namespace CUIPanel {
             }
         }
 
-        /// <summary>事件委托，提供标准事件处理方法规范。</summary>
-        /// <param name="obj">传入事件的参数集合</param>
-        public delegate void ConsoleManagerEventHandler(ConsoleManager cManager);
-        
-        /// <summary>缓冲区互斥锁</summary>
-        private SpinLock _eventLock = new SpinLock();
-
-        /// <summary>更新前触发事件内部存储</summary>
-        private event ConsoleManagerEventHandler _beforeUpdate;
-        /// <summary>更新前触发事件，参数指向当前 <see cref="ConsoleManager"/> 实例</summary>
-        public event ConsoleManagerEventHandler BeforeUpdate {
-            add {
-                EnterLock(_eventLock);
-                _beforeUpdate += value;
-                ExitLock(_eventLock);
-            }
-            remove {
-                EnterLock(_eventLock);
-                _beforeUpdate -= value;
-                ExitLock(_eventLock);
-            }
-        }
-        /// <summary>更新时触发事件内部存储（仅内部可见）</summary>
-        private event ConsoleManagerEventHandler _duringUpdate;
-        /// <summary>更新时触发事件，参数指向当前 <see cref="ConsoleManager"/> 实例（仅内部可见）</summary>
-        private event ConsoleManagerEventHandler DuringUpdate {
-            add {
-                EnterLock(_eventLock);
-                _duringUpdate += value;
-                ExitLock(_eventLock);
-            }
-            remove {
-                EnterLock(_eventLock);
-                _duringUpdate -= value;
-                ExitLock(_eventLock);
-            }
-        }
-        /// <summary>更新后触发事件内部存储</summary>
-        private event ConsoleManagerEventHandler _afterUpdate;
-        /// <summary>更新后触发事件，参数指向当前 <see cref="ConsoleManager"/> 实例</summary>
-        public event ConsoleManagerEventHandler AfterUpdate {
-            add {
-                EnterLock(_eventLock);
-                _afterUpdate += value;
-                ExitLock(_eventLock);
-            }
-            remove {
-                EnterLock(_eventLock);
-                _afterUpdate -= value;
-                ExitLock(_eventLock);
-            }
-        }
-        /// <summary>窗口大小改变后触发事件内部存储</summary>
-        private event ConsoleManagerEventHandler _afterResize;
-        /// <summary>窗口大小改变后触发事件，参数指向当前 <see cref="ConsoleManager"/> 实例</summary>
-        public event ConsoleManagerEventHandler AfterResize {
-            add {
-                EnterLock(_eventLock);
-                _afterResize += value;
-                ExitLock(_eventLock);
-            }
-            remove {
-                EnterLock(_eventLock);
-                _afterResize -= value;
-                ExitLock(_eventLock);
-            }
-        }
-
         /// <summary>光标可见性内部存储</summary>
         private bool _cursorVisible = false;
         /// <summary>获取或设置一个值，用以指示光标是否可见（默认不可见）</summary>
@@ -125,9 +56,6 @@ namespace CUIPanel {
             set => Console.CursorVisible = _cursorVisible = value;
         }
 
-        /// <summary>指示面板缓冲区是否有过更改（供 <see cref="PassiveUpdate(ConsoleManager)"/> 方法使用）</summary>
-        private bool _panelBufferChanged = false;
-
         /// <summary>指示是否使用被动刷新策略（默认不使用）</summary>
         private bool _usePassiveUpdate = false;
         /// <summary>获取或设置是否使用被动刷新策略（默认不使用）</summary>
@@ -135,15 +63,11 @@ namespace CUIPanel {
             get => _usePassiveUpdate;
             set {
                 if (value && !_usePassiveUpdate) {
-                    EnterLock(_eventLock);
                     DuringUpdate -= ActiveUpdate;
                     DuringUpdate += PassiveUpdate;
-                    ExitLock(_eventLock);
                 } else if (!value && _usePassiveUpdate) {
-                    EnterLock(_eventLock);
                     DuringUpdate -= PassiveUpdate;
                     DuringUpdate += ActiveUpdate;
-                    ExitLock(_eventLock);
                 }
                 _usePassiveUpdate = value;
             }
@@ -151,7 +75,75 @@ namespace CUIPanel {
 
         /// <summary>窗口更新器线程句柄内部存储</summary>
         private Thread _consoleUpdaterHandler;
-        
+
+        /// <summary>全局互斥锁</summary>
+        private Semaphore _globalLock = new Semaphore(1, 1);
+
+        /// <summary>事件委托，提供标准事件处理方法规范。</summary>
+        /// <param name="obj">传入事件的参数集合</param>
+        public delegate void ConsoleManagerEventHandler(ConsoleManager cManager);
+
+        /// <summary>更新前触发事件内部存储</summary>
+        private event ConsoleManagerEventHandler _beforeUpdate;
+        /// <summary>更新前触发事件，参数指向当前 <see cref="ConsoleManager"/> 实例</summary>
+        public event ConsoleManagerEventHandler BeforeUpdate {
+            add {
+                EnterLock(_globalLock);
+                _beforeUpdate += value;
+                ExitLock(_globalLock);
+            }
+            remove {
+                EnterLock(_globalLock);
+                _beforeUpdate -= value;
+                ExitLock(_globalLock);
+            }
+        }
+        /// <summary>更新时触发事件内部存储（仅内部可见）</summary>
+        private event ConsoleManagerEventHandler _duringUpdate;
+        /// <summary>更新时触发事件，参数指向当前 <see cref="ConsoleManager"/> 实例（仅内部可见）</summary>
+        private event ConsoleManagerEventHandler DuringUpdate {
+            add {
+                EnterLock(_globalLock);
+                _duringUpdate += value;
+                ExitLock(_globalLock);
+            }
+            remove {
+                EnterLock(_globalLock);
+                _duringUpdate -= value;
+                ExitLock(_globalLock);
+            }
+        }
+        /// <summary>更新后触发事件内部存储</summary>
+        private event ConsoleManagerEventHandler _afterUpdate;
+        /// <summary>更新后触发事件，参数指向当前 <see cref="ConsoleManager"/> 实例</summary>
+        public event ConsoleManagerEventHandler AfterUpdate {
+            add {
+                EnterLock(_globalLock);
+                _afterUpdate += value;
+                ExitLock(_globalLock);
+            }
+            remove {
+                EnterLock(_globalLock);
+                _afterUpdate -= value;
+                ExitLock(_globalLock);
+            }
+        }
+        /// <summary>窗口大小改变后触发事件内部存储</summary>
+        private event ConsoleManagerEventHandler _afterResize;
+        /// <summary>窗口大小改变后触发事件，参数指向当前 <see cref="ConsoleManager"/> 实例</summary>
+        public event ConsoleManagerEventHandler AfterResize {
+            add {
+                EnterLock(_globalLock);
+                _afterResize += value;
+                ExitLock(_globalLock);
+            }
+            remove {
+                EnterLock(_globalLock);
+                _afterResize -= value;
+                ExitLock(_globalLock);
+            }
+        }
+
         /// <summary>
         ///     初始化类 <see cref="ConsoleManager"/> 的实例，此实例将接管 <see cref="Console"/> 的操作。<br/>
         ///     初始化此类后请勿直接操作 <see cref="Console"/> 类或者初始化第二个 <see cref="ConsoleManager"/> 类的实例，否则可能导致意料之外的错误。
@@ -179,22 +171,19 @@ namespace CUIPanel {
             try {
                 while (true) {
                     EnterLock(_globalLock);
-                    EnterLock(_eventLock);
                     // 获得缓冲区锁，临界区开始
 
                     _beforeUpdate?.Invoke(this);
                     _duringUpdate?.Invoke(this);
                     _afterUpdate?.Invoke(this);
-
-                    ExitLock(_eventLock);
+                    
                     ExitLock(_globalLock);
                     // 释放缓冲区锁，临界区结束
                     Thread.Sleep(_updateRate);
                 }
             }
             catch (ThreadAbortException) {
-                if (_globalLock.IsHeldByCurrentThread)
-                    _globalLock.Exit();
+                ExitLock(_globalLock);
             }
             catch (Exception e) {
                 Console.Clear();
@@ -228,9 +217,7 @@ namespace CUIPanel {
                 for (var i = 0; i < (PanelHeight <= tempBG.GetLength(0) ? PanelHeight : tempBG.GetLength(0)); i++)
                     for (var j = 0; j < (PanelWidth <= tempBG.GetLength(1) ? PanelWidth : tempBG.GetLength(1)); j++)
                         _bgColorSet[i, j] = tempBG[i, j];
-                EnterLock(_eventLock);
                 _afterResize?.Invoke(this);
-                ExitLock(_eventLock);
             } catch (Exception e) {
                 Console.WriteLine(e);
                 Environment.Exit(-1);
@@ -368,10 +355,19 @@ namespace CUIPanel {
         }
 
         /// <summary>设置窗口的大小。</summary>
-        /// <param name="width">窗口宽度</param>
-        /// <param name="height">窗口高度</param>
-        public void SetWindowSize(int width, int height) {
-            Console.SetWindowSize(width, height);
+        /// <param name="Width">窗口宽度</param>
+        /// <param name="Height">窗口高度</param>
+        public void SetWindowSize(int Width, int Height) {
+            EnterLock(_globalLock);
+            // 获得缓冲区锁，临界区开始
+
+            Console.SetWindowSize(Width, Height);
+            if (InitPanelRowColSize())
+                InitPanelBufferSize();
+            DrawPanel();
+            
+            ExitLock(_globalLock);
+            // 释放缓冲区锁，临界区结束
         }
 
         /// <summary>清空当前窗口的所有输出并复位缓冲区。</summary>
@@ -430,26 +426,17 @@ namespace CUIPanel {
         }
 
         /// <summary>获取指定对象上的互斥锁。</summary>
-        /// <param name="spinLock">要获取锁的对象</param>
-        /// <returns>指示当前线程是否已持有该锁</returns>
+        /// <param name="Lock">要获取锁的对象</param>
         /// <exception cref="TimeoutException"/>
-        private bool EnterLock(SpinLock spinLock) {
-            bool lockToken = false;
-            spinLock.TryEnter(_updateRate * 30 <= 30000 ? 30000 : _updateRate * 30, ref lockToken);
-            if (!lockToken)
+        private void EnterLock(Semaphore Lock) {
+            if (!Lock.WaitOne(_updateRate * 30 <= 30000 ? 30000 : _updateRate * 30))
                 throw new TimeoutException("尝试获取锁的时间过长。");
-            return spinLock.IsHeldByCurrentThread;
         }
 
         /// <summary>释放指定对象上的互斥锁。</summary>
-        /// <param name="spinLock">要释放锁的对象</param>
-        /// <returns>指示当前线程是否释放了锁</returns>
-        private bool ExitLock(SpinLock spinLock) {
-            if (spinLock.IsHeldByCurrentThread) {
-                spinLock.Exit();
-                return !spinLock.IsHeldByCurrentThread;
-            } else
-                return false;
+        /// <param name="Lock">要释放锁的对象</param>
+        private void ExitLock(Semaphore Lock) {
+            Lock.Release();
         }
     }
 }
