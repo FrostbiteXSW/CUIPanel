@@ -5,10 +5,7 @@ namespace CUIPanel {
     internal static class Program {
         private static ConsoleManager _cManager;
         private static int _curRow, _curCol, _curRowBefore, _curColBefore;
-        private static char[,] _panelBuffer;
-        private static ConsoleColor[,] _fgColorSet, _bgColorSet;
         private static int bWidth = 6, bHeight = 3;
-        private static ConsoleKeyInfo ckInfo;
 
         static void Init() {
             _cManager = new ConsoleManager {
@@ -75,8 +72,8 @@ namespace CUIPanel {
             _curRow = _curCol = _curRowBefore = _curColBefore = 0;
             _cManager.DrawPanel(2 + _curRow * (bHeight + 1), 3 + _curCol * (bWidth + 1), new[,] {{'+', '+'}}, ConsoleColor.Red, ConsoleColor.Black);
             _cManager.BeforeUpdate += _cManager_BeforeUpdate;
-            _cManager.AfterUpdate += _cManager_AfterUpdate;
             _cManager.AfterResize += _cManager_AfterResize;
+            _cManager.KeyPressed += _cManager_KeyPressed;
             _cManager.IsPaused = false;
         }
 
@@ -84,10 +81,8 @@ namespace CUIPanel {
             try {
                 Init();
                 Console.Title = Console.WindowWidth.ToString() + ',' + Console.WindowHeight;
-
-                int remain = 64;
-                while (remain != 0)
-                    ckInfo = _cManager.ReadKey();
+                Thread.Sleep(1000000);
+                _cManager.Exit();
             } catch (Exception e) {
                 Console.WriteLine(e.Message);
                 Console.WriteLine("按下回车键继续...");
@@ -95,31 +90,7 @@ namespace CUIPanel {
             }
         }
 
-        private static void _cManager_AfterUpdate(ConsoleManager cManager) {
-            _panelBuffer = cManager.PanelBuffer;
-            _fgColorSet = cManager.FgColorSet;
-            _bgColorSet = cManager.BgColorSet;
-        }
-
         private static void _cManager_BeforeUpdate(ConsoleManager cManager) {
-            switch (ckInfo.Key) {
-                case ConsoleKey.LeftArrow:
-                    _curCol = _curCol - 1 < 0 ? 0 : _curCol - 1;
-                    ckInfo = new ConsoleKeyInfo();
-                    break;
-                case ConsoleKey.RightArrow:
-                    _curCol = _curCol + 1 > 7 ? 7 : _curCol + 1;
-                    ckInfo = new ConsoleKeyInfo();
-                    break;
-                case ConsoleKey.UpArrow:
-                    _curRow = _curRow - 1 < 0 ? 0 : _curRow - 1;
-                    ckInfo = new ConsoleKeyInfo();
-                    break;
-                case ConsoleKey.DownArrow:
-                    _curRow = _curRow + 1 > 7 ? 7 : _curRow + 1;
-                    ckInfo = new ConsoleKeyInfo();
-                    break;
-            }
             if (_curRow == _curRowBefore && _curCol == _curColBefore) return;
             _cManager.DrawPanel(2 + _curRowBefore * (bHeight + 1), 3 + _curColBefore * (bWidth + 1), new[,] { { '-', '-' } }, ConsoleColor.Green, ConsoleColor.Black);
             _curRowBefore = _curRow;
@@ -128,7 +99,30 @@ namespace CUIPanel {
         }
 
         private static void _cManager_AfterResize(ConsoleManager cManager) {
-            cManager.DrawPanel(0, 0, _panelBuffer, _fgColorSet, _bgColorSet);
+            if (cManager.PanelHeight < (bHeight + 1) * 8 + 1 || cManager.PanelWidth < (bWidth + 1) * 8 + 1) {
+                cManager.Clear();
+                Console.WriteLine("窗口大小过小，无法继续显示。");
+                Console.WriteLine("按任意键继续...");
+                Console.ReadKey(true);
+                Environment.Exit(-1);
+            }
+        }
+
+        private static void _cManager_KeyPressed(ConsoleManager cManager, ConsoleKeyInfo keyInfo) {
+            switch (keyInfo.Key) {
+                case ConsoleKey.LeftArrow:
+                    _curCol = _curCol - 1 < 0 ? 0 : _curCol - 1;
+                    break;
+                case ConsoleKey.RightArrow:
+                    _curCol = _curCol + 1 > 7 ? 7 : _curCol + 1;
+                    break;
+                case ConsoleKey.UpArrow:
+                    _curRow = _curRow - 1 < 0 ? 0 : _curRow - 1;
+                    break;
+                case ConsoleKey.DownArrow:
+                    _curRow = _curRow + 1 > 7 ? 7 : _curRow + 1;
+                    break;
+            }
         }
     }
 }

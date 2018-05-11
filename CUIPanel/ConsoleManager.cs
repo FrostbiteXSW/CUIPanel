@@ -75,6 +75,8 @@ namespace CUIPanel {
 
         /// <summary>窗口更新器线程句柄内部存储</summary>
         private readonly Thread _consoleUpdaterHandler;
+        /// <summary>按键监视器器线程句柄内部存储</summary>
+        private readonly Thread _keyPressMonitorHandler;
 
         /// <summary>指示控制台窗口更新器是否处在暂停状态</summary>
         private bool _ispaused;
@@ -152,12 +154,33 @@ namespace CUIPanel {
             }
         }
 
+        /// <summary>事件委托，提供按键响应事件处理方法规范</summary>
+        /// <param name="cManager">传入事件对应的 <see cref="ConsoleManager"/> 实例</param>
+        /// <param name="keyInfo">传入事件对应的按键信息</param>
+        public delegate void KeyPressEventHandler(ConsoleManager cManager, ConsoleKeyInfo keyInfo);
+        /// <summary>按键响应事件内部存储</summary>
+        private event KeyPressEventHandler _keyPressed;
+        /// <summary>按键响应事件，参数指向当前 <see cref="ConsoleManager"/> 实例及按键信息</summary>
+        public event KeyPressEventHandler KeyPressed {
+            add {
+                EnterLock(_globalLock);
+                _keyPressed += value;
+                ExitLock(_globalLock);
+            }
+            remove {
+                EnterLock(_globalLock);
+                _keyPressed -= value;
+                ExitLock(_globalLock);
+            }
+        }
+
         /// <summary>
         ///     初始化类 <see cref="ConsoleManager"/> 的实例，此实例将接管 <see cref="Console"/> 的操作。<br/>
         ///     初始化此类后请勿直接操作 <see cref="Console"/> 类或者初始化第二个 <see cref="ConsoleManager"/> 类的实例，否则可能导致意料之外的错误。
         /// </summary>
         /// <exception cref="TimeoutException"/>
         public ConsoleManager() {
+            _ispaused = true;
             InitPanelRowColSize();
             _panelBuffer = new char[_panelRow, _panelCol];
             _fgColorSet = new ConsoleColor[_panelRow, _panelCol];
@@ -171,10 +194,14 @@ namespace CUIPanel {
             DuringUpdate += ActiveUpdate;
             _consoleUpdaterHandler = new Thread(ConsoleUpdater);
             _consoleUpdaterHandler.Start();
+            _keyPressMonitorHandler = new Thread(KeyPressMonitor);
+            _keyPressMonitorHandler.Start();
+            _ispaused = false;
         }
 
         /// <summary>控制台窗口更新器，以指定 <see cref="_updateRate"/> 刷新窗口内容，当窗口大小发生改变时对应更新面板大小。</summary>
         /// <exception cref="TimeoutException"/>
+        /// <exception cref="ThreadAbortException"/>
         private void ConsoleUpdater() {
             try {
                 while (true) {
@@ -189,6 +216,38 @@ namespace CUIPanel {
                     _beforeUpdate?.Invoke(this);
                     _duringUpdate?.Invoke(this);
                     _afterUpdate?.Invoke(this);
+                    
+                    ExitLock(_globalLock);
+                    // 释放缓冲区锁，临界区结束
+                }
+            }
+            catch (ThreadAbortException) {
+                ExitLock(_globalLock);
+            }
+            catch (Exception e) {
+                Console.Clear();
+                Console.WriteLine(e);
+                Console.WriteLine("按任意键继续...");
+                Console.ReadKey();
+                Environment.Exit(-1);
+            }
+        }
+
+        /// <summary>按键监视器，当捕获按键后触发对应事件</summary>
+        /// <exception cref="TimeoutException"/>
+        /// <exception cref="ThreadAbortException"/>
+        private void KeyPressMonitor() {
+            try {
+                while (true) {
+                    Thread.Sleep(_updateRate);
+                    ConsoleKeyInfo keyInfo = Console.ReadKey(true);
+                    if (_ispaused)
+                        continue;
+
+                    EnterLock(_globalLock);
+                    // 获得缓冲区锁，临界区开始
+
+                    _keyPressed?.Invoke(this, keyInfo);
                     
                     ExitLock(_globalLock);
                     // 释放缓冲区锁，临界区结束
@@ -463,6 +522,7 @@ namespace CUIPanel {
         /// <summary>结束当前的 <see cref="ConsoleManager"/> 实例运行。</summary>
         public void Exit() {
             _consoleUpdaterHandler.Abort();
+            _keyPressMonitorHandler.Abort();
             Clear();
         }
 
@@ -518,13 +578,5 @@ namespace CUIPanel {
             if (spinLock.IsHeldByCurrentThread)
                 spinLock.Exit();
         }
-
-        /// <summary>获取用户按下的下一个字符或功能键，按下的键不会显示在控制台上。</summary>
-        /// <returns>按下的键的信息</returns>
-        public ConsoleKeyInfo ReadKey() {
-            return Console.ReadKey(true);
-        }
-
-        //TODO:增加KeyPressEventHandler和KeyPress事件机制
     }
 }
