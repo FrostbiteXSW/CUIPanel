@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Text;
 using System.Threading;
 
@@ -519,5 +518,13 @@ namespace CUIPanel {
             if (spinLock.IsHeldByCurrentThread)
                 spinLock.Exit();
         }
+
+        /// <summary>获取用户按下的下一个字符或功能键，按下的键不会显示在控制台上。</summary>
+        /// <returns>按下的键的信息</returns>
+        public ConsoleKeyInfo ReadKey() {
+            return Console.ReadKey(true);
+        }
+
+        //TODO:增加KeyPressEventHandler和KeyPress事件机制
     }
 }
