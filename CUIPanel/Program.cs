@@ -5,53 +5,53 @@ namespace CUIPanel {
     internal static class Program {
         private static ConsoleManager _cManager;
         private static int _curRow, _curCol, _curRowBefore, _curColBefore;
-        private const int bWidth = 6, bHeight = 3;
+        private const int BWidth = 6, BHeight = 3;
 
-        static void Init() {
+        private static void Init() {
             _cManager = new ConsoleManager {
                 UpdateRate = 10,
                 UsePassiveUpdate = true,
                 CursorVisible = false,
                 IsPaused = true
             };
-            _cManager.SetWindowSize((bWidth + 1) * 8 + 2, (bHeight + 1) * 8 + 2);
-            char[,] a = new char[(bHeight + 1) * 8 + 1, (bWidth + 1) * 8 + 1];
+            _cManager.SetWindowSize((BWidth + 1) * 8 + 2, (BHeight + 1) * 8 + 2);
+            char[,] a = new char[(BHeight + 1) * 8 + 1, (BWidth + 1) * 8 + 1];
             for (int i = 0; i < a.GetLength(0); i++) {
-                for (int j = 0; j < a.GetLength(1); j += bWidth + 1) {
+                for (int j = 0; j < a.GetLength(1); j += BWidth + 1) {
                     if (i == 0) {
                         if (j == 0) {
                             a[i, j] = '┌';
-                            for (int k = 0; k < bWidth; k++)
+                            for (int k = 0; k < BWidth; k++)
                                 a[i, j + k + 1] = '─';
                         } else if (j == a.GetLength(1) - 1)
                             a[i, j] = '┐';
                         else {
                             a[i, j] = '┬';
-                            for (int k = 0; k < bWidth; k++)
+                            for (int k = 0; k < BWidth; k++)
                                 a[i, j + k + 1] = '─';
                         }
                     } else if (i == a.GetLength(0) - 1) {
                         if (j == 0) {
                             a[i, j] = '└';
-                            for (int k = 0; k < bWidth; k++)
+                            for (int k = 0; k < BWidth; k++)
                                 a[i, j + k + 1] = '─';
                         } else if (j == a.GetLength(1) - 1)
                             a[i, j] = '┘';
                         else {
                             a[i, j] = '┴';
-                            for (int k = 0; k < bWidth; k++)
+                            for (int k = 0; k < BWidth; k++)
                                 a[i, j + k + 1] = '─';
                         }
                     } else if (i % 4 == 0) {
                         if (j == 0) {
                             a[i, j] = '├';
-                            for (int k = 0; k < bWidth; k++)
+                            for (int k = 0; k < BWidth; k++)
                                 a[i, j + k + 1] = '─';
                         } else if (j == a.GetLength(1) - 1)
                             a[i, j] = '┤';
                         else {
                             a[i, j] = '┼';
-                            for (int k = 0; k < bWidth; k++)
+                            for (int k = 0; k < BWidth; k++)
                                 a[i, j + k + 1] = '─';
                         }
                     } else {
@@ -60,17 +60,17 @@ namespace CUIPanel {
                 }
             }
             _cManager.DrawPanel(0, 0, a);
-            for (int i = 0; i < a.GetLength(0); i += bHeight + 1)
+            for (int i = 0; i < a.GetLength(0); i += BHeight + 1)
                 _cManager.DrawPanel(i, 0, i, a.GetLength(1) - 1, ConsoleColor.Yellow, ConsoleColor.DarkGray);
-            for (int i = 0; i < a.GetLength(1); i += bWidth + 1)
+            for (int i = 0; i < a.GetLength(1); i += BWidth + 1)
                 _cManager.DrawPanel(0, i, a.GetLength(0) - 1, i, ConsoleColor.Yellow, ConsoleColor.DarkGray);
-            for (int i = 1; i < (bHeight + 1) * 8 + 1; i += bHeight + 1)
-                for (int j = 1; j < (bWidth + 1) * 8 + 1; j += bWidth + 1) {
-                    _cManager.DrawPanel(i, j, i + bHeight - 1, j + bWidth - 1, ConsoleColor.Green, ConsoleColor.Black);
+            for (int i = 1; i < (BHeight + 1) * 8 + 1; i += BHeight + 1)
+                for (int j = 1; j < (BWidth + 1) * 8 + 1; j += BWidth + 1) {
+                    _cManager.DrawPanel(i, j, i + BHeight - 1, j + BWidth - 1, ConsoleColor.Green, ConsoleColor.Black);
                     _cManager.DrawPanel(i + 1, j + 2, new[,] {{'-', '-'}});
                 }
             _curRow = _curCol = _curRowBefore = _curColBefore = 0;
-            _cManager.DrawPanel(2 + _curRow * (bHeight + 1), 3 + _curCol * (bWidth + 1), new[,] {{'+', '+'}}, ConsoleColor.Red, ConsoleColor.Black);
+            _cManager.DrawPanel(2 + _curRow * (BHeight + 1), 3 + _curCol * (BWidth + 1), new[,] {{'+', '+'}}, ConsoleColor.Red, ConsoleColor.Black);
             _cManager.BeforeUpdate += _cManager_BeforeUpdate;
             _cManager.AfterResize += _cManager_AfterResize;
             _cManager.KeyPressed += _cManager_KeyPressed;
@@ -92,14 +92,14 @@ namespace CUIPanel {
 
         private static void _cManager_BeforeUpdate(ConsoleManager cManager) {
             if (_curRow == _curRowBefore && _curCol == _curColBefore) return;
-            _cManager.DrawPanel(2 + _curRowBefore * (bHeight + 1), 3 + _curColBefore * (bWidth + 1), new[,] { { '-', '-' } }, ConsoleColor.Green, ConsoleColor.Black);
+            _cManager.DrawPanel(2 + _curRowBefore * (BHeight + 1), 3 + _curColBefore * (BWidth + 1), new[,] { { '-', '-' } }, ConsoleColor.Green, ConsoleColor.Black);
             _curRowBefore = _curRow;
             _curColBefore = _curCol;
-            _cManager.DrawPanel(2 + _curRowBefore * (bHeight + 1), 3 + _curColBefore * (bWidth + 1), new[,] { { '+', '+' } }, ConsoleColor.Red, ConsoleColor.Black);
+            _cManager.DrawPanel(2 + _curRowBefore * (BHeight + 1), 3 + _curColBefore * (BWidth + 1), new[,] { { '+', '+' } }, ConsoleColor.Red, ConsoleColor.Black);
         }
 
         private static void _cManager_AfterResize(ConsoleManager cManager) {
-            if (cManager.PanelHeight < (bHeight + 1) * 8 + 1 || cManager.PanelWidth < (bWidth + 1) * 8 + 1) {
+            if (cManager.PanelHeight < (BHeight + 1) * 8 + 1 || cManager.PanelWidth < (BWidth + 1) * 8 + 1) {
                 cManager.Clear();
                 Console.WriteLine("窗口大小过小，无法继续显示。");
                 Console.WriteLine("按任意键继续...");
