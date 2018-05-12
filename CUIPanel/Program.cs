@@ -5,7 +5,7 @@ namespace CUIPanel {
     internal static class Program {
         private static ConsoleManager _cManager;
         private static int _curRow, _curCol, _curRowBefore, _curColBefore;
-        private static int bWidth = 6, bHeight = 3;
+        private const int bWidth = 6, bHeight = 3;
 
         static void Init() {
             _cManager = new ConsoleManager {
