@@ -279,9 +279,11 @@ namespace CUIPanel {
             for (int i = 0;;) {
                 for (int j = 0; j < PanelWidth; j++) {
                     if (cFgc != _fgColorSet[i, j] || cBgc != _bgColorSet[i, j]) {
-                        sBuilders.Enqueue(sBuilder);
-                        fgcList.Enqueue(cFgc);
-                        bgcList.Enqueue(cBgc);
+                        if (sBuilder.Length > 0) {
+                            sBuilders.Enqueue(sBuilder);
+                            fgcList.Enqueue(cFgc);
+                            bgcList.Enqueue(cBgc);
+                        }
                         sBuilder = new StringBuilder();
                         cFgc = _fgColorSet[i, j];
                         cBgc = _bgColorSet[i, j];
@@ -293,9 +295,11 @@ namespace CUIPanel {
                 else
                     break;
             }
-            sBuilders.Enqueue(sBuilder);
-            fgcList.Enqueue(cFgc);
-            bgcList.Enqueue(cBgc);
+            if (sBuilder.Length > 0) {
+                sBuilders.Enqueue(sBuilder);
+                fgcList.Enqueue(cFgc);
+                bgcList.Enqueue(cBgc);
+            }
 
             // 输出缓冲区中所有待输出内容
             while (sBuilders.Count != 0) {
