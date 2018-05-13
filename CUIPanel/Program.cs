@@ -5,7 +5,7 @@ namespace CUIPanel {
     internal static class Program {
         private static ConsoleManager _cManager;
         private static int _curRow, _curCol, _curRowBefore, _curColBefore;
-        private static int bWidth = 6, bHeight = 3;
+        private const int bWidth = 6, bHeight = 3;
 
         static void Init() {
             _cManager = new ConsoleManager {
@@ -70,6 +70,7 @@ namespace CUIPanel {
                     _cManager.DrawPanel(i + 1, j + 2, new[,] {{'-', '-'}});
                 }
             _curRow = _curCol = _curRowBefore = _curColBefore = 0;
+            _cManager.Title = Console.WindowWidth.ToString() + ',' + Console.WindowHeight;
             _cManager.DrawPanel(2 + _curRow * (bHeight + 1), 3 + _curCol * (bWidth + 1), new[,] {{'+', '+'}}, ConsoleColor.Red, ConsoleColor.Black);
             _cManager.BeforeUpdate += _cManager_BeforeUpdate;
             _cManager.AfterResize += _cManager_AfterResize;
@@ -80,7 +81,6 @@ namespace CUIPanel {
         public static void Main(string[] args) {
             try {
                 Init();
-                Console.Title = Console.WindowWidth.ToString() + ',' + Console.WindowHeight;
                 Thread.Sleep(1000000);
                 _cManager.Exit();
             } catch (Exception e) {
@@ -99,6 +99,7 @@ namespace CUIPanel {
         }
 
         private static void _cManager_AfterResize(ConsoleManager cManager) {
+            _cManager.Title = Console.WindowWidth.ToString() + ',' + Console.WindowHeight;
             if (cManager.PanelHeight < (bHeight + 1) * 8 + 1 || cManager.PanelWidth < (bWidth + 1) * 8 + 1) {
                 cManager.Clear();
                 Console.WriteLine("窗口大小过小，无法继续显示。");
