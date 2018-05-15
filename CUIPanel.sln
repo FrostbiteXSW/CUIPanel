@@ -1,6 +1,11 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 15
+VisualStudioVersion = 15.0.27703.2000
+MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CUIPanel", "CUIPanel\CUIPanel.csproj", "{B77CDCC9-1F79-4D31-97E3-B79D972989BC}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TestSimpleMoving", "TestSimpleMoving\TestSimpleMoving.csproj", "{C635A56A-8D75-4E08-880C-8FF6BCE59615}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -12,5 +17,15 @@ Global
 		{B77CDCC9-1F79-4D31-97E3-B79D972989BC}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{B77CDCC9-1F79-4D31-97E3-B79D972989BC}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{B77CDCC9-1F79-4D31-97E3-B79D972989BC}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C635A56A-8D75-4E08-880C-8FF6BCE59615}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C635A56A-8D75-4E08-880C-8FF6BCE59615}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C635A56A-8D75-4E08-880C-8FF6BCE59615}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C635A56A-8D75-4E08-880C-8FF6BCE59615}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {FF852BCF-B7EB-4815-8D46-35C600CDA225}
 	EndGlobalSection
 EndGlobal
