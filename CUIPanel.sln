@@ -7,6 +7,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CUIPanel", "CUIPanel\CUIPan
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TestSimpleMoving", "TestSimpleMoving\TestSimpleMoving.csproj", "{C635A56A-8D75-4E08-880C-8FF6BCE59615}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TestNano", "TestNano\TestNano.csproj", "{57F68219-052A-4799-9023-331E24CC77A6}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -21,6 +23,10 @@ Global
 		{C635A56A-8D75-4E08-880C-8FF6BCE59615}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{C635A56A-8D75-4E08-880C-8FF6BCE59615}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{C635A56A-8D75-4E08-880C-8FF6BCE59615}.Release|Any CPU.Build.0 = Release|Any CPU
+		{57F68219-052A-4799-9023-331E24CC77A6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{57F68219-052A-4799-9023-331E24CC77A6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{57F68219-052A-4799-9023-331E24CC77A6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{57F68219-052A-4799-9023-331E24CC77A6}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
