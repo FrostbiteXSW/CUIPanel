@@ -696,7 +696,7 @@ namespace CUIPanel {
             DrawPanel();
         }
 
-        /// <summary>被动更新方法，强制在每个更新周期刷新窗口内容。</summary>
+        /// <summary>被动更新方法，只有当缓冲区发生变化时刷新窗口内容。</summary>
         /// <param name="cManager">传入参数，指向当前 <see cref="ConsoleManager"/> 实例（不使用）</param>
         private void PassiveUpdate(ConsoleManager cManager) {
             if (InitPanelRowColSize()) {
