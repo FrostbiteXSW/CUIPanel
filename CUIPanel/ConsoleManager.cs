@@ -606,23 +606,21 @@ namespace CUIPanel {
         /// <summary>获取控制台窗口大小并赋值给面板行数与列数，并返回一个值指示窗口大小是否已更改。</summary>
         /// <returns>返回 true 表示窗口大小已更改，返回 false 表示窗口大小未更改。</returns>
         private bool InitPanelRowColSize() {
-            if (PanelWidth != Console.WindowWidth - 1 || PanelHeight != Console.WindowHeight - 1) {
-                // 确保窗口大小调整是通过鼠标拖动时能够延迟更新
-                int tempWidth, tempHeight;
-                do {
-                    tempWidth = Console.WindowWidth;
-                    tempHeight = Console.WindowHeight;
-                    Thread.Sleep(_updateRate >= 100 ? _updateRate : 100);
-                } while (tempWidth != Console.WindowWidth || tempHeight != Console.WindowHeight);
+            if (PanelWidth == Console.WindowWidth - 1 && PanelHeight == Console.WindowHeight - 1) return false;
+            // 确保窗口大小调整是通过鼠标拖动时能够延迟更新
+            int tempWidth, tempHeight;
+            do {
+                tempWidth = Console.WindowWidth;
+                tempHeight = Console.WindowHeight;
+                Thread.Sleep(_updateRate >= 100 ? _updateRate : 100);
+            } while (tempWidth != Console.WindowWidth || tempHeight != Console.WindowHeight);
 
-                Console.Clear();
-                Console.ResetColor();
-                Console.CursorVisible = _cursorVisible;
-                PanelWidth = Console.WindowWidth - 1;
-                PanelHeight = Console.WindowHeight - 1;
-                return true;
-            }
-            return false;
+            Console.Clear();
+            Console.ResetColor();
+            Console.CursorVisible = _cursorVisible;
+            PanelWidth = Console.WindowWidth - 1;
+            PanelHeight = Console.WindowHeight - 1;
+            return true;
         }
 
         /// <summary>根据 <see cref="PanelWidth"/> 和 <see cref="PanelHeight"/> 设定值初始化/重新初始化 <see cref="_panelBuffer"/> 的大小。</summary>
