@@ -94,6 +94,9 @@ namespace CUIPanel {
         /// <summary>事件委托，提供标准事件处理方法规范。</summary>
         /// <param name="cManager">传入事件对应的 <see cref="ConsoleManager"/> 实例</param>
         public delegate void ConsoleManagerEventHandler(ConsoleManager cManager);
+        
+        // 由于命名冲突，从此处开始取消ReSharper的命名规则检查
+        // ReSharper disable InconsistentNaming
 
         /// <summary>更新前触发事件内部存储。</summary>
         private event ConsoleManagerEventHandler _beforeUpdate;
@@ -175,6 +178,9 @@ namespace CUIPanel {
                 ExitLock(ref _globalLock);
             }
         }
+        
+        // 恢复ReSharper的命名规则检查
+        // ReSharper restore InconsistentNaming
 
         /// <summary>
         ///     初始化类 <see cref="ConsoleManager"/> 的实例，此实例将接管 <see cref="Console"/> 的操作。<br/>
@@ -182,8 +188,16 @@ namespace CUIPanel {
         /// </summary>
         /// <exception cref="TimeoutException"/>
         public ConsoleManager() {
+            // 初始化控制台
+            Console.Clear();
+            Console.ResetColor();
+            Console.CursorVisible = _cursorVisible;
+
+            // 初始化面板大小
+            PanelWidth = Console.WindowWidth - 1;
+            PanelHeight = Console.WindowHeight - 1;
+            
             // 初始化内部缓冲区
-            InitPanelRowColSize();
             _panelBuffer = new char[PanelHeight, PanelWidth];
             _fgColorSet = new ConsoleColor[PanelHeight, PanelWidth];
             _bgColorSet = new ConsoleColor[PanelHeight, PanelWidth];
@@ -603,10 +617,14 @@ namespace CUIPanel {
             _panelBufferChanged = true;
         }
 
-        /// <summary>获取控制台窗口大小并赋值给面板行数与列数，并返回一个值指示窗口大小是否已更改。</summary>
+        /// <summary>
+        ///     获取控制台窗口大小，并返回一个值指示窗口大小是否已更改。
+        ///     若窗口大小发生变化，则赋值给面板行数与列数，更新面板缓冲区大小，并唤醒窗口大小改变后触发事件。
+        /// </summary>
         /// <returns>返回 true 表示窗口大小已更改，返回 false 表示窗口大小未更改。</returns>
-        private bool InitPanelRowColSize() {
+        private bool InitPanelSize() {
             if (PanelWidth == Console.WindowWidth - 1 && PanelHeight == Console.WindowHeight - 1) return false;
+
             // 确保窗口大小调整是通过鼠标拖动时能够延迟更新
             int tempWidth, tempHeight;
             do {
@@ -620,11 +638,7 @@ namespace CUIPanel {
             Console.CursorVisible = _cursorVisible;
             PanelWidth = Console.WindowWidth - 1;
             PanelHeight = Console.WindowHeight - 1;
-            return true;
-        }
 
-        /// <summary>根据 <see cref="PanelWidth"/> 和 <see cref="PanelHeight"/> 设定值初始化/重新初始化 <see cref="_panelBuffer"/> 的大小。</summary>
-        private void InitPanelBufferSize() {
             try {
                 char[,] tempBuffer = _panelBuffer;
                 ConsoleColor[,] tempFg = _fgColorSet, tempBg = _bgColorSet;
@@ -638,23 +652,26 @@ namespace CUIPanel {
                     }
                 }
 
-                for (var i = 0; i < (PanelHeight <= tempBuffer.GetLength(0) ? PanelHeight : tempBuffer.GetLength(0)); i++)
-                    for (var j = 0; j < (PanelWidth <= tempBuffer.GetLength(1) ? PanelWidth : tempBuffer.GetLength(1)); j++)
+                for (int i = 0; i < (PanelHeight <= tempBuffer.GetLength(0) ? PanelHeight : tempBuffer.GetLength(0)); i++)
+                    for (int j = 0; j < (PanelWidth <= tempBuffer.GetLength(1) ? PanelWidth : tempBuffer.GetLength(1)); j++)
                         _panelBuffer[i, j] = tempBuffer[i, j];
-                for (var i = 0; i < (PanelHeight <= tempFg.GetLength(0) ? PanelHeight : tempFg.GetLength(0)); i++)
-                    for (var j = 0; j < (PanelWidth <= tempFg.GetLength(1) ? PanelWidth : tempFg.GetLength(1)); j++)
+                for (int i = 0; i < (PanelHeight <= tempFg.GetLength(0) ? PanelHeight : tempFg.GetLength(0)); i++)
+                    for (int j = 0; j < (PanelWidth <= tempFg.GetLength(1) ? PanelWidth : tempFg.GetLength(1)); j++)
                         _fgColorSet[i, j] = tempFg[i, j];
-                for (var i = 0; i < (PanelHeight <= tempBg.GetLength(0) ? PanelHeight : tempBg.GetLength(0)); i++)
-                    for (var j = 0; j < (PanelWidth <= tempBg.GetLength(1) ? PanelWidth : tempBg.GetLength(1)); j++)
+                for (int i = 0; i < (PanelHeight <= tempBg.GetLength(0) ? PanelHeight : tempBg.GetLength(0)); i++)
+                    for (int j = 0; j < (PanelWidth <= tempBg.GetLength(1) ? PanelWidth : tempBg.GetLength(1)); j++)
                         _bgColorSet[i, j] = tempBg[i, j];
                 
                 Console.SetBufferSize(Console.WindowWidth, Console.WindowHeight);
-
-                _afterResize?.Invoke(this);
             } catch (Exception e) {
                 Console.WriteLine(e);
                 Environment.Exit(-1);
             }
+
+            // 唤醒窗口大小改变后触发事件
+            _afterResize?.Invoke(this);
+
+            return true;
         }
         
         /// <summary>设置窗口的大小，缓冲区实际长宽为窗口长宽减一。</summary>
@@ -665,8 +682,7 @@ namespace CUIPanel {
             // 获得缓冲区锁，临界区开始
 
             Console.SetWindowSize(width, height);
-            if (InitPanelRowColSize())
-                InitPanelBufferSize();
+            InitPanelSize();
             DrawPanel();
             
             ExitLock(ref _globalLock);
@@ -689,18 +705,16 @@ namespace CUIPanel {
         /// <summary>主动更新方法，强制在每个更新周期刷新窗口内容。</summary>
         /// <param name="cManager">传入参数，指向当前 <see cref="ConsoleManager"/> 实例（不使用）</param>
         private void ActiveUpdate(ConsoleManager cManager) {
-            if (InitPanelRowColSize())
-                InitPanelBufferSize();
+            InitPanelSize();
             DrawPanel();
         }
 
         /// <summary>被动更新方法，只有当缓冲区发生变化时刷新窗口内容。</summary>
         /// <param name="cManager">传入参数，指向当前 <see cref="ConsoleManager"/> 实例（不使用）</param>
         private void PassiveUpdate(ConsoleManager cManager) {
-            if (InitPanelRowColSize()) {
-                InitPanelBufferSize();
+            if (InitPanelSize())
                 DrawPanel();
-            } else if (_panelBufferChanged) {
+            else if (_panelBufferChanged) {
                 DrawPanel();
                 _panelBufferChanged = false;
             }
@@ -708,7 +722,7 @@ namespace CUIPanel {
 
         /// <summary>清空当前窗口的所有输出并复位缓冲区。</summary>
         public void Clear() {
-            InitPanelRowColSize();
+            InitPanelSize();
             _panelBuffer = new char[PanelHeight, PanelWidth];
             _fgColorSet = new ConsoleColor[PanelHeight, PanelWidth];
             _bgColorSet = new ConsoleColor[PanelHeight, PanelWidth];
