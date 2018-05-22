@@ -6,187 +6,51 @@ using System.Threading;
 namespace CUIPanel {
     /// <summary>主面板管理器，管理整个面板及缓冲区，子面板通过向此类递交请求间接控制其所有面板区域</summary>
     public class ConsoleManager {
-        /// <summary>获取面板列数（窗口列数减一）。</summary>
-        public int PanelWidth { get; private set; }
-        /// <summary>获取面板行数（窗口行数减一）。</summary>
-        public int PanelHeight { get; private set; }
-
-        /// <summary>根据当前字体和屏幕分辨率获取缓冲区可能具有的最大列数（控制台窗口可能具有的最大列数减一）。</summary>
-        public int LargestPanelWidth => Console.LargestWindowWidth - 1;
-        /// <summary>根据当前字体和屏幕分辨率获取缓冲区可能具有的最大行数（控制台窗口可能具有的最大行数减一）。</summary>
-        public int LargestPanelHeight => Console.LargestWindowHeight - 1;
-
-        /// <summary>面板缓冲区内部存储，维度存储方式为 [ 行 , 列 ]，起始位置为左上角。</summary>
-        private char[,] _panelBuffer;
-        /// <summary>获取面板缓冲区的浅表副本。</summary>
-        public char[,] PanelBuffer => (char[,])_panelBuffer.Clone();
-        /// <summary>指示面板缓冲区是否有过更改（供 <see cref="PassiveUpdate(ConsoleManager)"/> 方法使用）。</summary>
-        private bool _panelBufferChanged;
-
-        /// <summary>当前面板默认前景色。</summary>
-        public readonly ConsoleColor DefaultfgColor = Console.ForegroundColor;
-        /// <summary>当前面板默认背景色。</summary>
-        public readonly ConsoleColor DefaultbgColor = Console.BackgroundColor;
-
-        /// <summary>面板前景色缓冲区内部存储。</summary>
-        private ConsoleColor[,] _fgColorSet;
-        /// <summary>获取面板前景色缓冲区的浅表副本。</summary>
-        public ConsoleColor[,] FgColorSet => (ConsoleColor[,])_fgColorSet.Clone();
-        /// <summary>面板背景色缓冲区内部存储。</summary>
-        private ConsoleColor[,] _bgColorSet;
-        /// <summary>获取面板背景色缓冲区的浅表副本。</summary>
-        public ConsoleColor[,] BgColorSet => (ConsoleColor[,])_bgColorSet.Clone();
-
-        /// <summary>面板刷新率内部存储。</summary>
-        private int _updateRate = 100;
-        /// <summary>获取或设置面板刷新率（10-10000）。</summary>
-        public int UpdateRate {
-            get => _updateRate;
-            set {
-                if (value < 10 || value > 10000)
-                    throw new InvalidOperationException("无效的面板刷新率数值。");
-                _updateRate = value;
-            }
-        }
-
-        /// <summary>光标可见性内部存储。</summary>
-        private bool _cursorVisible;
-        /// <summary>获取或设置一个值，用以指示光标是否可见（默认不可见）。</summary>
-        public bool CursorVisible {
-            get => _cursorVisible;
-            set => Console.CursorVisible = _cursorVisible = value;
-        }
-
-        /// <summary>指示是否使用被动刷新策略（默认不使用）。</summary>
-        private bool _usePassiveUpdate;
-        /// <summary>获取或设置是否使用被动刷新策略（默认不使用）。</summary>
-        public bool UsePassiveUpdate {
-            get => _usePassiveUpdate;
-            set {
-                if (value && !_usePassiveUpdate) {
-                    DuringUpdate -= ActiveUpdate;
-                    DuringUpdate += PassiveUpdate;
-                } else if (!value && _usePassiveUpdate) {
-                    DuringUpdate -= PassiveUpdate;
-                    DuringUpdate += ActiveUpdate;
-                }
-                _usePassiveUpdate = value;
-            }
-        }
+        /// <summary>事件委托，提供标准事件处理方法规范。</summary>
+        /// <param name="cManager">传入事件对应的 <see cref="ConsoleManager" /> 实例</param>
+        public delegate void ConsoleManagerEventHandler(ConsoleManager cManager);
 
         /// <summary>窗口更新器线程句柄内部存储。</summary>
         private readonly Thread _consoleUpdaterHandler;
+
         /// <summary>按键监视器器线程句柄内部存储。</summary>
         private readonly Thread _keyPressMonitorHandler;
 
-        /// <summary>获取或设置一个值，指示控制台窗口更新器是否需要暂停一切更新操作。</summary>
-        public bool IsPaused { get; set; }
+        /// <summary>当前面板默认背景色。</summary>
+        public readonly ConsoleColor DefaultbgColor = Console.BackgroundColor;
 
-        /// <summary>获取或设置要显示在控制台标题栏中的标题。</summary>
-        public string Title {
-            get => Console.Title;
-            set => Console.Title = value;
-        }
+        /// <summary>当前面板默认前景色。</summary>
+        public readonly ConsoleColor DefaultfgColor = Console.ForegroundColor;
+
+        /// <summary>面板背景色缓冲区内部存储。</summary>
+        private ConsoleColor[,] _bgColorSet;
+
+        /// <summary>光标可见性内部存储。</summary>
+        private bool _cursorVisible;
+
+        /// <summary>面板前景色缓冲区内部存储。</summary>
+        private ConsoleColor[,] _fgColorSet;
 
         /// <summary>全局互斥锁。</summary>
         private SpinLock _globalLock = new SpinLock(true);
-        
-        /// <summary>事件委托，提供标准事件处理方法规范。</summary>
-        /// <param name="cManager">传入事件对应的 <see cref="ConsoleManager"/> 实例</param>
-        public delegate void ConsoleManagerEventHandler(ConsoleManager cManager);
-        
-        // 由于命名冲突，从此处开始取消ReSharper的命名规则检查
-        // ReSharper disable InconsistentNaming
 
-        /// <summary>更新前触发事件内部存储。</summary>
-        private event ConsoleManagerEventHandler _beforeUpdate;
-        /// <summary>更新前触发事件，参数指向当前 <see cref="ConsoleManager"/> 实例。</summary>
-        public event ConsoleManagerEventHandler BeforeUpdate {
-            add {
-                EnterLock(ref _globalLock);
-                _beforeUpdate += value;
-                ExitLock(ref _globalLock);
-            }
-            remove {
-                EnterLock(ref _globalLock);
-                _beforeUpdate -= value;
-                ExitLock(ref _globalLock);
-            }
-        }
-        /// <summary>更新时触发事件内部存储（仅内部可见）。</summary>
-        private event ConsoleManagerEventHandler _duringUpdate;
-        /// <summary>更新时触发事件，参数指向当前 <see cref="ConsoleManager"/> 实例（仅内部可见）。</summary>
-        private event ConsoleManagerEventHandler DuringUpdate {
-            add {
-                EnterLock(ref _globalLock);
-                _duringUpdate += value;
-                ExitLock(ref _globalLock);
-            }
-            remove {
-                EnterLock(ref _globalLock);
-                _duringUpdate -= value;
-                ExitLock(ref _globalLock);
-            }
-        }
-        /// <summary>更新后触发事件内部存储。</summary>
-        private event ConsoleManagerEventHandler _afterUpdate;
-        /// <summary>更新后触发事件，参数指向当前 <see cref="ConsoleManager"/> 实例。</summary>
-        public event ConsoleManagerEventHandler AfterUpdate {
-            add {
-                EnterLock(ref _globalLock);
-                _afterUpdate += value;
-                ExitLock(ref _globalLock);
-            }
-            remove {
-                EnterLock(ref _globalLock);
-                _afterUpdate -= value;
-                ExitLock(ref _globalLock);
-            }
-        }
-        /// <summary>窗口大小改变后触发事件内部存储。</summary>
-        private event ConsoleManagerEventHandler _afterResize;
-        /// <summary>窗口大小改变后触发事件，参数指向当前 <see cref="ConsoleManager"/> 实例。</summary>
-        public event ConsoleManagerEventHandler AfterResize {
-            add {
-                EnterLock(ref _globalLock);
-                _afterResize += value;
-                ExitLock(ref _globalLock);
-            }
-            remove {
-                EnterLock(ref _globalLock);
-                _afterResize -= value;
-                ExitLock(ref _globalLock);
-            }
-        }
+        /// <summary>面板缓冲区内部存储，维度存储方式为 [ 行 , 列 ]，起始位置为左上角。</summary>
+        private char[,] _panelBuffer;
 
-        /// <summary>事件委托，提供按键响应事件处理方法规范。</summary>
-        /// <param name="cManager">传入事件对应的 <see cref="ConsoleManager"/> 实例</param>
-        /// <param name="keyInfo">传入事件对应的按键信息</param>
-        public delegate void KeyPressEventHandler(ConsoleManager cManager, ConsoleKeyInfo keyInfo);
-        /// <summary>按键响应事件内部存储。</summary>
-        private event KeyPressEventHandler _keyPressed;
-        /// <summary>按键响应事件，参数指向当前 <see cref="ConsoleManager"/> 实例及按键信息。</summary>
-        public event KeyPressEventHandler KeyPressed {
-            add {
-                EnterLock(ref _globalLock);
-                _keyPressed += value;
-                ExitLock(ref _globalLock);
-            }
-            remove {
-                EnterLock(ref _globalLock);
-                _keyPressed -= value;
-                ExitLock(ref _globalLock);
-            }
-        }
-        
-        // 恢复ReSharper的命名规则检查
-        // ReSharper restore InconsistentNaming
+        /// <summary>指示面板缓冲区是否有过更改（供 <see cref="PassiveUpdate(ConsoleManager)" /> 方法使用）。</summary>
+        private bool _panelBufferChanged;
+
+        /// <summary>面板刷新率内部存储。</summary>
+        private int _updateRate = 100;
+
+        /// <summary>指示是否使用被动刷新策略（默认不使用）。</summary>
+        private bool _usePassiveUpdate;
 
         /// <summary>
-        ///     初始化类 <see cref="ConsoleManager"/> 的实例，此实例将接管 <see cref="Console"/> 的操作。<br/>
-        ///     初始化此类后请勿直接操作 <see cref="Console"/> 类或者初始化第二个 <see cref="ConsoleManager"/> 类的实例，否则可能导致意料之外的错误。
+        ///     初始化类 <see cref="ConsoleManager" /> 的实例，此实例将接管 <see cref="Console" /> 的操作。<br />
+        ///     初始化此类后请勿直接操作 <see cref="Console" /> 类或者初始化第二个 <see cref="ConsoleManager" /> 类的实例，否则可能导致意料之外的错误。
         /// </summary>
-        /// <exception cref="TimeoutException"/>
+        /// <exception cref="TimeoutException" />
         public ConsoleManager() {
             // 初始化控制台
             Console.Clear();
@@ -196,13 +60,13 @@ namespace CUIPanel {
             // 初始化面板大小
             PanelWidth = Console.WindowWidth - 1;
             PanelHeight = Console.WindowHeight - 1;
-            
+
             // 初始化内部缓冲区
             _panelBuffer = new char[PanelHeight, PanelWidth];
             _fgColorSet = new ConsoleColor[PanelHeight, PanelWidth];
             _bgColorSet = new ConsoleColor[PanelHeight, PanelWidth];
-            for (int i = 0; i < PanelHeight; i++) {
-                for (int j = 0; j < PanelWidth; j++) {
+            for (var i = 0; i < PanelHeight; i++) {
+                for (var j = 0; j < PanelWidth; j++) {
                     _fgColorSet[i, j] = DefaultfgColor;
                     _bgColorSet[i, j] = DefaultbgColor;
                 }
@@ -223,9 +87,71 @@ namespace CUIPanel {
             IsPaused = false;
         }
 
-        /// <summary>控制台窗口更新器，以指定 <see cref="_updateRate"/> 刷新窗口内容，当窗口大小发生改变时对应更新面板大小。</summary>
-        /// <exception cref="TimeoutException"/>
-        /// <exception cref="ThreadAbortException"/>
+        /// <summary>获取面板列数（窗口列数减一）。</summary>
+        public int PanelWidth { get; private set; }
+
+        /// <summary>获取面板行数（窗口行数减一）。</summary>
+        public int PanelHeight { get; private set; }
+
+        /// <summary>根据当前字体和屏幕分辨率获取缓冲区可能具有的最大列数（控制台窗口可能具有的最大列数减一）。</summary>
+        public int LargestPanelWidth => Console.LargestWindowWidth - 1;
+
+        /// <summary>根据当前字体和屏幕分辨率获取缓冲区可能具有的最大行数（控制台窗口可能具有的最大行数减一）。</summary>
+        public int LargestPanelHeight => Console.LargestWindowHeight - 1;
+
+        /// <summary>获取面板缓冲区的浅表副本。</summary>
+        public char[,] PanelBuffer => (char[,]) _panelBuffer.Clone();
+
+        /// <summary>获取面板前景色缓冲区的浅表副本。</summary>
+        public ConsoleColor[,] FgColorSet => (ConsoleColor[,]) _fgColorSet.Clone();
+
+        /// <summary>获取面板背景色缓冲区的浅表副本。</summary>
+        public ConsoleColor[,] BgColorSet => (ConsoleColor[,]) _bgColorSet.Clone();
+
+        /// <summary>获取或设置面板刷新率（10-10000）。</summary>
+        public int UpdateRate {
+            get => _updateRate;
+            set {
+                if (value < 10 || value > 10000)
+                    throw new InvalidOperationException("无效的面板刷新率数值。");
+                _updateRate = value;
+            }
+        }
+
+        /// <summary>获取或设置一个值，用以指示光标是否可见（默认不可见）。</summary>
+        public bool CursorVisible {
+            get => _cursorVisible;
+            set => Console.CursorVisible = _cursorVisible = value;
+        }
+
+        /// <summary>获取或设置是否使用被动刷新策略（默认不使用）。</summary>
+        public bool UsePassiveUpdate {
+            get => _usePassiveUpdate;
+            set {
+                if (value && !_usePassiveUpdate) {
+                    DuringUpdate -= ActiveUpdate;
+                    DuringUpdate += PassiveUpdate;
+                }
+                else if (!value && _usePassiveUpdate) {
+                    DuringUpdate -= PassiveUpdate;
+                    DuringUpdate += ActiveUpdate;
+                }
+                _usePassiveUpdate = value;
+            }
+        }
+
+        /// <summary>获取或设置一个值，指示控制台窗口更新器是否需要暂停一切更新操作。</summary>
+        public bool IsPaused { get; set; }
+
+        /// <summary>获取或设置要显示在控制台标题栏中的标题。</summary>
+        public string Title {
+            get => Console.Title;
+            set => Console.Title = value;
+        }
+
+        /// <summary>控制台窗口更新器，以指定 <see cref="_updateRate" /> 刷新窗口内容，当窗口大小发生改变时对应更新面板大小。</summary>
+        /// <exception cref="TimeoutException" />
+        /// <exception cref="ThreadAbortException" />
         private void ConsoleUpdater() {
             try {
                 while (true) {
@@ -240,7 +166,7 @@ namespace CUIPanel {
                     _beforeUpdate?.Invoke(this);
                     _duringUpdate?.Invoke(this);
                     _afterUpdate?.Invoke(this);
-                    
+
                     ExitLock(ref _globalLock);
                     // 释放缓冲区锁，临界区结束
                 }
@@ -258,13 +184,13 @@ namespace CUIPanel {
         }
 
         /// <summary>按键监视器，当捕获按键后触发对应事件。</summary>
-        /// <exception cref="TimeoutException"/>
-        /// <exception cref="ThreadAbortException"/>
+        /// <exception cref="TimeoutException" />
+        /// <exception cref="ThreadAbortException" />
         private void KeyPressMonitor() {
             try {
                 while (true) {
                     Thread.Sleep(_updateRate);
-                    ConsoleKeyInfo keyInfo = Console.ReadKey(true);
+                    var keyInfo = Console.ReadKey(true);
                     if (IsPaused)
                         continue;
 
@@ -272,7 +198,7 @@ namespace CUIPanel {
                     // 获得缓冲区锁，临界区开始
 
                     _keyPressed?.Invoke(this, keyInfo);
-                    
+
                     ExitLock(ref _globalLock);
                     // 释放缓冲区锁，临界区结束
                 }
@@ -294,13 +220,13 @@ namespace CUIPanel {
             Console.CursorVisible = false;
             int left = Console.CursorLeft, top = Console.CursorTop;
             Console.SetCursorPosition(0, 0);
-            Queue<StringBuilder> sBuilders = new Queue<StringBuilder>();
-            Queue<ConsoleColor> fgcList = new Queue<ConsoleColor>();
-            Queue<ConsoleColor> bgcList = new Queue<ConsoleColor>();
-            StringBuilder sBuilder = new StringBuilder();
+            var sBuilders = new Queue<StringBuilder>();
+            var fgcList = new Queue<ConsoleColor>();
+            var bgcList = new Queue<ConsoleColor>();
+            var sBuilder = new StringBuilder();
             ConsoleColor cFgc = DefaultfgColor, cBgc = DefaultbgColor;
-            for (int i = 0;;) {
-                for (int j = 0; j < PanelWidth; j++) {
+            for (var i = 0;;) {
+                for (var j = 0; j < PanelWidth; j++) {
                     if (cFgc != _fgColorSet[i, j] || cBgc != _bgColorSet[i, j]) {
                         if (sBuilder.Length > 0) {
                             sBuilders.Enqueue(sBuilder);
@@ -335,19 +261,19 @@ namespace CUIPanel {
             Console.ResetColor();
             Console.Write('\0');
 
-            Console.SetCursorPosition(left >= Console.WindowWidth - 2 ? Console.WindowWidth - 2 : left, 
-                                      top >= Console.WindowHeight - 2 ? Console.WindowHeight - 2 : top);
+            Console.SetCursorPosition(left >= Console.WindowWidth - 2 ? Console.WindowWidth - 2 : left,
+                top >= Console.WindowHeight - 2 ? Console.WindowHeight - 2 : top);
             Console.CursorVisible = _cursorVisible;
         }
-        
+
         /// <summary>以指定位置为左上角和右下角设置矩形区域的绘制内容并在下一次刷新时更新。</summary>
         /// <param name="startRow">起始位置行号</param>
         /// <param name="startCol">起始位置列号</param>
         /// <param name="endRow">结束位置行号</param>
         /// <param name="endCol">结束位置列号</param>
         /// <param name="content">绘制内容</param>
-        /// <exception cref="ArgumentOutOfRangeException"/>
-        /// <exception cref="TimeoutException"/>
+        /// <exception cref="ArgumentOutOfRangeException" />
+        /// <exception cref="TimeoutException" />
         public void DrawPanel(int startRow, int startCol, int endRow, int endCol, char content) {
             if (startRow < 0 || startRow > endRow)
                 throw new ArgumentOutOfRangeException(nameof(startRow));
@@ -361,8 +287,8 @@ namespace CUIPanel {
             EnterLock(ref _globalLock);
             // 获得缓冲区锁，临界区开始
 
-            for (int i = startRow; i <= endRow; i++)
-                for (int j = startCol; j <= endCol; j++)
+            for (var i = startRow; i <= endRow; i++)
+                for (var j = startCol; j <= endCol; j++)
                     _panelBuffer[i, j] = content;
 
             ExitLock(ref _globalLock);
@@ -378,8 +304,8 @@ namespace CUIPanel {
         /// <param name="endCol">结束位置列号</param>
         /// <param name="foregroundColor">前景色</param>
         /// <param name="backgroundColor">背景色</param>
-        /// <exception cref="ArgumentOutOfRangeException"/>
-        /// <exception cref="TimeoutException"/>
+        /// <exception cref="ArgumentOutOfRangeException" />
+        /// <exception cref="TimeoutException" />
         public void DrawPanel(int startRow, int startCol, int endRow, int endCol, ConsoleColor foregroundColor, ConsoleColor backgroundColor) {
             if (startRow < 0 || startRow > endRow)
                 throw new ArgumentOutOfRangeException(nameof(startRow));
@@ -393,8 +319,8 @@ namespace CUIPanel {
             EnterLock(ref _globalLock);
             // 获得缓冲区锁，临界区开始
 
-            for (int i = startRow; i <= endRow; i++) {
-                for (int j = startCol; j <= endCol; j++) {
+            for (var i = startRow; i <= endRow; i++) {
+                for (var j = startCol; j <= endCol; j++) {
                     _fgColorSet[i, j] = foregroundColor;
                     _bgColorSet[i, j] = backgroundColor;
                 }
@@ -414,8 +340,8 @@ namespace CUIPanel {
         /// <param name="content">绘制内容</param>
         /// <param name="foregroundColor">前景色</param>
         /// <param name="backgroundColor">背景色</param>
-        /// <exception cref="ArgumentOutOfRangeException"/>
-        /// <exception cref="TimeoutException"/>
+        /// <exception cref="ArgumentOutOfRangeException" />
+        /// <exception cref="TimeoutException" />
         public void DrawPanel(int startRow, int startCol, int endRow, int endCol, char content, ConsoleColor foregroundColor, ConsoleColor backgroundColor) {
             if (startRow < 0 || startRow > endRow)
                 throw new ArgumentOutOfRangeException(nameof(startRow));
@@ -429,8 +355,8 @@ namespace CUIPanel {
             EnterLock(ref _globalLock);
             // 获得缓冲区锁，临界区开始
 
-            for (int i = startRow; i <= endRow; i++) {
-                for (int j = startCol; j <= endCol; j++) {
+            for (var i = startRow; i <= endRow; i++) {
+                for (var j = startCol; j <= endCol; j++) {
                     _panelBuffer[i, j] = content;
                     _fgColorSet[i, j] = foregroundColor;
                     _bgColorSet[i, j] = backgroundColor;
@@ -447,8 +373,8 @@ namespace CUIPanel {
         /// <param name="startRow">起始位置行号</param>
         /// <param name="startCol">起始位置列号</param>
         /// <param name="content">绘制内容</param>
-        /// <exception cref="ArgumentOutOfRangeException"/>
-        /// <exception cref="TimeoutException"/>
+        /// <exception cref="ArgumentOutOfRangeException" />
+        /// <exception cref="TimeoutException" />
         public void DrawPanel(int startRow, int startCol, char[,] content) {
             if (startRow < 0 || startRow >= PanelHeight)
                 throw new ArgumentOutOfRangeException(nameof(startRow));
@@ -458,13 +384,13 @@ namespace CUIPanel {
             EnterLock(ref _globalLock);
             // 获得缓冲区锁，临界区开始
 
-            for (int i = startRow; i < (content.GetLength(0) + startRow >= PanelHeight ? PanelHeight : content.GetLength(0) + startRow); i++)
-                for (int j = startCol; j < (content.GetLength(1) + startCol >= PanelWidth ? PanelWidth : content.GetLength(1) + startCol); j++)
+            for (var i = startRow; i < (content.GetLength(0) + startRow >= PanelHeight ? PanelHeight : content.GetLength(0) + startRow); i++)
+                for (var j = startCol; j < (content.GetLength(1) + startCol >= PanelWidth ? PanelWidth : content.GetLength(1) + startCol); j++)
                     _panelBuffer[i, j] = content[i - startRow, j - startCol];
 
             ExitLock(ref _globalLock);
             // 释放缓冲区锁，临界区结束
-            
+
             _panelBufferChanged = true;
         }
 
@@ -480,12 +406,12 @@ namespace CUIPanel {
                 throw new ArgumentOutOfRangeException(nameof(startCol));
             if (foregroundColor.GetLength(0) != backgroundColor.GetLength(0) || foregroundColor.GetLength(1) != backgroundColor.GetLength(1))
                 throw new InvalidOperationException("矩阵的大小不一致。");
-            
+
             EnterLock(ref _globalLock);
             // 获得缓冲区锁，临界区开始
 
-            for (int i = startRow; i < (foregroundColor.GetLength(0) + startRow >= PanelHeight ? PanelHeight : foregroundColor.GetLength(0) + startRow); i++)
-                for (int j = startCol; j < (foregroundColor.GetLength(1) + startCol >= PanelWidth ? PanelWidth : foregroundColor.GetLength(1) + startCol); j++) {
+            for (var i = startRow; i < (foregroundColor.GetLength(0) + startRow >= PanelHeight ? PanelHeight : foregroundColor.GetLength(0) + startRow); i++)
+                for (var j = startCol; j < (foregroundColor.GetLength(1) + startCol >= PanelWidth ? PanelWidth : foregroundColor.GetLength(1) + startCol); j++) {
                     _fgColorSet[i, j] = foregroundColor[i - startRow, j - startCol];
                     _bgColorSet[i, j] = backgroundColor[i - startRow, j - startCol];
                 }
@@ -502,8 +428,8 @@ namespace CUIPanel {
         /// <param name="content">绘制内容</param>
         /// <param name="foregroundColor">前景色</param>
         /// <param name="backgroundColor">背景色</param>
-        /// <exception cref="ArgumentOutOfRangeException"/>
-        /// <exception cref="TimeoutException"/>
+        /// <exception cref="ArgumentOutOfRangeException" />
+        /// <exception cref="TimeoutException" />
         public void DrawPanel(int startRow, int startCol, char[,] content, ConsoleColor foregroundColor, ConsoleColor backgroundColor) {
             if (startRow < 0 || startRow >= PanelHeight)
                 throw new ArgumentOutOfRangeException(nameof(startRow));
@@ -513,11 +439,11 @@ namespace CUIPanel {
             EnterLock(ref _globalLock);
             // 获得缓冲区锁，临界区开始
 
-            for (int i = startRow; i < (content.GetLength(0) + startRow >= PanelHeight ? PanelHeight : content.GetLength(0) + startRow); i++)
-                for (int j = startCol; j < (content.GetLength(1) + startCol >= PanelWidth ? PanelWidth : content.GetLength(1) + startCol); j++)
+            for (var i = startRow; i < (content.GetLength(0) + startRow >= PanelHeight ? PanelHeight : content.GetLength(0) + startRow); i++)
+                for (var j = startCol; j < (content.GetLength(1) + startCol >= PanelWidth ? PanelWidth : content.GetLength(1) + startCol); j++)
                     _panelBuffer[i, j] = content[i - startRow, j - startCol];
-            for (int i = startRow; i < (content.GetLength(0) + startRow >= PanelHeight ? PanelHeight : content.GetLength(0) + startRow); i++) {
-                for (int j = startCol; j < (content.GetLength(1) + startCol >= PanelWidth ? PanelWidth : content.GetLength(1) + startCol); j++) {
+            for (var i = startRow; i < (content.GetLength(0) + startRow >= PanelHeight ? PanelHeight : content.GetLength(0) + startRow); i++) {
+                for (var j = startCol; j < (content.GetLength(1) + startCol >= PanelWidth ? PanelWidth : content.GetLength(1) + startCol); j++) {
                     _fgColorSet[i, j] = foregroundColor;
                     _bgColorSet[i, j] = backgroundColor;
                 }
@@ -535,8 +461,8 @@ namespace CUIPanel {
         /// <param name="content">绘制内容</param>
         /// <param name="foregroundColor">前景色</param>
         /// <param name="backgroundColor">背景色</param>
-        /// <exception cref="ArgumentOutOfRangeException"/>
-        /// <exception cref="TimeoutException"/>
+        /// <exception cref="ArgumentOutOfRangeException" />
+        /// <exception cref="TimeoutException" />
         public void DrawPanel(int startRow, int startCol, char[,] content, ConsoleColor[,] foregroundColor, ConsoleColor[,] backgroundColor) {
             if (startRow < 0 || startRow >= PanelHeight)
                 throw new ArgumentOutOfRangeException(nameof(startRow));
@@ -549,8 +475,8 @@ namespace CUIPanel {
             EnterLock(ref _globalLock);
             // 获得缓冲区锁，临界区开始
 
-            for (int i = startRow; i < (content.GetLength(0) + startRow >= PanelHeight ? PanelHeight : content.GetLength(0) + startRow); i++)
-                for (int j = startCol; j < (content.GetLength(1) + startCol >= PanelWidth ? PanelWidth : content.GetLength(1) + startCol); j++) {
+            for (var i = startRow; i < (content.GetLength(0) + startRow >= PanelHeight ? PanelHeight : content.GetLength(0) + startRow); i++)
+                for (var j = startCol; j < (content.GetLength(1) + startCol >= PanelWidth ? PanelWidth : content.GetLength(1) + startCol); j++) {
                     _panelBuffer[i, j] = content[i - startRow, j - startCol];
                     _fgColorSet[i, j] = foregroundColor[i - startRow, j - startCol];
                     _bgColorSet[i, j] = backgroundColor[i - startRow, j - startCol];
@@ -558,16 +484,16 @@ namespace CUIPanel {
 
             ExitLock(ref _globalLock);
             // 释放缓冲区锁，临界区结束
-            
+
             _panelBufferChanged = true;
         }
-        
+
         /// <summary>以指定位置为左上角绘制矩形区域并在下一次刷新时更新，超出部分将不会绘制。</summary>
         /// <param name="startRow">起始位置行号</param>
         /// <param name="startCol">起始位置列号</param>
         /// <param name="content">绘制内容</param>
-        /// <exception cref="ArgumentOutOfRangeException"/>
-        /// <exception cref="TimeoutException"/>
+        /// <exception cref="ArgumentOutOfRangeException" />
+        /// <exception cref="TimeoutException" />
         public void DrawPanel(int startRow, int startCol, string content) {
             if (startRow < 0 || startRow >= PanelHeight)
                 throw new ArgumentOutOfRangeException(nameof(startRow));
@@ -576,25 +502,25 @@ namespace CUIPanel {
 
             EnterLock(ref _globalLock);
             // 获得缓冲区锁，临界区开始
-            
-            for (int i = startCol; i < (content.Length + startCol >= PanelWidth ? PanelWidth : content.Length + startCol); i++)
+
+            for (var i = startCol; i < (content.Length + startCol >= PanelWidth ? PanelWidth : content.Length + startCol); i++)
                 _panelBuffer[startRow, i] = content[i - startCol];
 
             ExitLock(ref _globalLock);
             // 释放缓冲区锁，临界区结束
-            
+
             _panelBufferChanged = true;
         }
 
-        
+
         /// <summary>以指定位置为左上角并指定前景背景色绘制矩形区域并在下一次刷新时更新，超出部分将不会绘制。</summary>
         /// <param name="startRow">起始位置行号</param>
         /// <param name="startCol">起始位置列号</param>
         /// <param name="content">绘制内容</param>
         /// <param name="foregroundColor">前景色</param>
         /// <param name="backgroundColor">背景色</param>
-        /// <exception cref="ArgumentOutOfRangeException"/>
-        /// <exception cref="TimeoutException"/>
+        /// <exception cref="ArgumentOutOfRangeException" />
+        /// <exception cref="TimeoutException" />
         public void DrawPanel(int startRow, int startCol, string content, ConsoleColor foregroundColor, ConsoleColor backgroundColor) {
             if (startRow < 0 || startRow >= PanelHeight)
                 throw new ArgumentOutOfRangeException(nameof(startRow));
@@ -605,7 +531,7 @@ namespace CUIPanel {
             // 获得缓冲区锁，临界区开始
 
 
-            for (int i = startCol; i < (content.Length + startCol >= PanelWidth ? PanelWidth : content.Length + startCol); i++) {
+            for (var i = startCol; i < (content.Length + startCol >= PanelWidth ? PanelWidth : content.Length + startCol); i++) {
                 _panelBuffer[startRow, i] = content[i - startCol];
                 _fgColorSet[startRow, i] = foregroundColor;
                 _bgColorSet[startRow, i] = backgroundColor;
@@ -640,30 +566,31 @@ namespace CUIPanel {
             PanelHeight = Console.WindowHeight - 1;
 
             try {
-                char[,] tempBuffer = _panelBuffer;
+                var tempBuffer = _panelBuffer;
                 ConsoleColor[,] tempFg = _fgColorSet, tempBg = _bgColorSet;
                 _panelBuffer = new char[PanelHeight, PanelWidth];
                 _fgColorSet = new ConsoleColor[PanelHeight, PanelWidth];
                 _bgColorSet = new ConsoleColor[PanelHeight, PanelWidth];
-                for (int i = 0; i < PanelHeight; i++) {
-                    for (int j = 0; j < PanelWidth; j++) {
+                for (var i = 0; i < PanelHeight; i++) {
+                    for (var j = 0; j < PanelWidth; j++) {
                         _fgColorSet[i, j] = DefaultfgColor;
                         _bgColorSet[i, j] = DefaultbgColor;
                     }
                 }
 
-                for (int i = 0; i < (PanelHeight <= tempBuffer.GetLength(0) ? PanelHeight : tempBuffer.GetLength(0)); i++)
-                    for (int j = 0; j < (PanelWidth <= tempBuffer.GetLength(1) ? PanelWidth : tempBuffer.GetLength(1)); j++)
+                for (var i = 0; i < (PanelHeight <= tempBuffer.GetLength(0) ? PanelHeight : tempBuffer.GetLength(0)); i++)
+                    for (var j = 0; j < (PanelWidth <= tempBuffer.GetLength(1) ? PanelWidth : tempBuffer.GetLength(1)); j++)
                         _panelBuffer[i, j] = tempBuffer[i, j];
-                for (int i = 0; i < (PanelHeight <= tempFg.GetLength(0) ? PanelHeight : tempFg.GetLength(0)); i++)
-                    for (int j = 0; j < (PanelWidth <= tempFg.GetLength(1) ? PanelWidth : tempFg.GetLength(1)); j++)
+                for (var i = 0; i < (PanelHeight <= tempFg.GetLength(0) ? PanelHeight : tempFg.GetLength(0)); i++)
+                    for (var j = 0; j < (PanelWidth <= tempFg.GetLength(1) ? PanelWidth : tempFg.GetLength(1)); j++)
                         _fgColorSet[i, j] = tempFg[i, j];
-                for (int i = 0; i < (PanelHeight <= tempBg.GetLength(0) ? PanelHeight : tempBg.GetLength(0)); i++)
-                    for (int j = 0; j < (PanelWidth <= tempBg.GetLength(1) ? PanelWidth : tempBg.GetLength(1)); j++)
+                for (var i = 0; i < (PanelHeight <= tempBg.GetLength(0) ? PanelHeight : tempBg.GetLength(0)); i++)
+                    for (var j = 0; j < (PanelWidth <= tempBg.GetLength(1) ? PanelWidth : tempBg.GetLength(1)); j++)
                         _bgColorSet[i, j] = tempBg[i, j];
-                
+
                 Console.SetBufferSize(Console.WindowWidth, Console.WindowHeight);
-            } catch (Exception e) {
+            }
+            catch (Exception e) {
                 Console.WriteLine(e);
                 Environment.Exit(-1);
             }
@@ -673,7 +600,7 @@ namespace CUIPanel {
 
             return true;
         }
-        
+
         /// <summary>设置窗口的大小，缓冲区实际长宽为窗口长宽减一。</summary>
         /// <param name="width">窗口宽度</param>
         /// <param name="height">窗口高度</param>
@@ -684,7 +611,7 @@ namespace CUIPanel {
             Console.SetWindowSize(width, height);
             InitPanelSize();
             DrawPanel();
-            
+
             ExitLock(ref _globalLock);
             // 释放缓冲区锁，临界区结束
         }
@@ -697,23 +624,24 @@ namespace CUIPanel {
             // 获得缓冲区锁，临界区开始
 
             Console.SetCursorPosition(col, row);
-            
+
             ExitLock(ref _globalLock);
             // 释放缓冲区锁，临界区结束
         }
 
         /// <summary>主动更新方法，强制在每个更新周期刷新窗口内容。</summary>
-        /// <param name="cManager">传入参数，指向当前 <see cref="ConsoleManager"/> 实例（不使用）</param>
+        /// <param name="cManager">传入参数，指向当前 <see cref="ConsoleManager" /> 实例（不使用）</param>
         private void ActiveUpdate(ConsoleManager cManager) {
             InitPanelSize();
             DrawPanel();
         }
 
         /// <summary>被动更新方法，只有当缓冲区发生变化时刷新窗口内容。</summary>
-        /// <param name="cManager">传入参数，指向当前 <see cref="ConsoleManager"/> 实例（不使用）</param>
+        /// <param name="cManager">传入参数，指向当前 <see cref="ConsoleManager" /> 实例（不使用）</param>
         private void PassiveUpdate(ConsoleManager cManager) {
-            if (InitPanelSize())
+            if (InitPanelSize()) {
                 DrawPanel();
+            }
             else if (_panelBufferChanged) {
                 DrawPanel();
                 _panelBufferChanged = false;
@@ -726,8 +654,8 @@ namespace CUIPanel {
             _panelBuffer = new char[PanelHeight, PanelWidth];
             _fgColorSet = new ConsoleColor[PanelHeight, PanelWidth];
             _bgColorSet = new ConsoleColor[PanelHeight, PanelWidth];
-            for (int i = 0; i < PanelHeight; i++) {
-                for (int j = 0; j < PanelWidth; j++) {
+            for (var i = 0; i < PanelHeight; i++) {
+                for (var j = 0; j < PanelWidth; j++) {
                     _fgColorSet[i, j] = DefaultfgColor;
                     _bgColorSet[i, j] = DefaultbgColor;
                 }
@@ -735,7 +663,7 @@ namespace CUIPanel {
             DrawPanel();
         }
 
-        /// <summary>结束当前的 <see cref="ConsoleManager"/> 实例运行。</summary>
+        /// <summary>结束当前的 <see cref="ConsoleManager" /> 实例运行。</summary>
         public void Exit() {
             _consoleUpdaterHandler.Abort();
             _keyPressMonitorHandler.Abort();
@@ -745,10 +673,10 @@ namespace CUIPanel {
         /// <summary>获取指定对象上的互斥锁。</summary>
         /// <param name="spinLock">要获取锁的对象</param>
         /// <returns>指示当前线程是否已持有该锁</returns>
-        /// <exception cref="TimeoutException"/>
+        /// <exception cref="TimeoutException" />
         private void EnterLock(ref SpinLock spinLock) {
             if (spinLock.IsHeldByCurrentThread) return;
-            bool lockToken = false;
+            var lockToken = false;
             spinLock.TryEnter(_updateRate * 30 <= 30000 ? 30000 : _updateRate * 30, ref lockToken);
             if (!lockToken)
                 throw new TimeoutException("尝试获取锁的时间过长。");
@@ -761,5 +689,101 @@ namespace CUIPanel {
             if (spinLock.IsHeldByCurrentThread)
                 spinLock.Exit();
         }
+
+        // 由于命名冲突，从此处开始取消ReSharper的命名规则检查
+        // ReSharper disable InconsistentNaming
+
+        /// <summary>更新前触发事件内部存储。</summary>
+        private event ConsoleManagerEventHandler _beforeUpdate;
+
+        /// <summary>更新前触发事件，参数指向当前 <see cref="ConsoleManager" /> 实例。</summary>
+        public event ConsoleManagerEventHandler BeforeUpdate {
+            add {
+                EnterLock(ref _globalLock);
+                _beforeUpdate += value;
+                ExitLock(ref _globalLock);
+            }
+            remove {
+                EnterLock(ref _globalLock);
+                _beforeUpdate -= value;
+                ExitLock(ref _globalLock);
+            }
+        }
+
+        /// <summary>更新时触发事件内部存储（仅内部可见）。</summary>
+        private event ConsoleManagerEventHandler _duringUpdate;
+
+        /// <summary>更新时触发事件，参数指向当前 <see cref="ConsoleManager" /> 实例（仅内部可见）。</summary>
+        private event ConsoleManagerEventHandler DuringUpdate {
+            add {
+                EnterLock(ref _globalLock);
+                _duringUpdate += value;
+                ExitLock(ref _globalLock);
+            }
+            remove {
+                EnterLock(ref _globalLock);
+                _duringUpdate -= value;
+                ExitLock(ref _globalLock);
+            }
+        }
+
+        /// <summary>更新后触发事件内部存储。</summary>
+        private event ConsoleManagerEventHandler _afterUpdate;
+
+        /// <summary>更新后触发事件，参数指向当前 <see cref="ConsoleManager" /> 实例。</summary>
+        public event ConsoleManagerEventHandler AfterUpdate {
+            add {
+                EnterLock(ref _globalLock);
+                _afterUpdate += value;
+                ExitLock(ref _globalLock);
+            }
+            remove {
+                EnterLock(ref _globalLock);
+                _afterUpdate -= value;
+                ExitLock(ref _globalLock);
+            }
+        }
+
+        /// <summary>窗口大小改变后触发事件内部存储。</summary>
+        private event ConsoleManagerEventHandler _afterResize;
+
+        /// <summary>窗口大小改变后触发事件，参数指向当前 <see cref="ConsoleManager" /> 实例。</summary>
+        public event ConsoleManagerEventHandler AfterResize {
+            add {
+                EnterLock(ref _globalLock);
+                _afterResize += value;
+                ExitLock(ref _globalLock);
+            }
+            remove {
+                EnterLock(ref _globalLock);
+                _afterResize -= value;
+                ExitLock(ref _globalLock);
+            }
+        }
+
+        /// <summary>事件委托，提供按键响应事件处理方法规范。</summary>
+        /// <param name="cManager">传入事件对应的 <see cref="ConsoleManager" /> 实例</param>
+        /// <param name="keyInfo">传入事件对应的按键信息</param>
+        public delegate void KeyPressEventHandler(ConsoleManager cManager, ConsoleKeyInfo keyInfo);
+
+        /// <summary>按键响应事件内部存储。</summary>
+        private event KeyPressEventHandler _keyPressed;
+
+        /// <summary>按键响应事件，参数指向当前 <see cref="ConsoleManager" /> 实例及按键信息。</summary>
+        public event KeyPressEventHandler KeyPressed {
+            add {
+                EnterLock(ref _globalLock);
+                _keyPressed += value;
+                ExitLock(ref _globalLock);
+            }
+            remove {
+                EnterLock(ref _globalLock);
+                _keyPressed -= value;
+                ExitLock(ref _globalLock);
+            }
+        }
+
+        // 恢复ReSharper的命名规则检查
+        // ReSharper restore InconsistentNaming
     }
 }
