@@ -6,11 +6,11 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 namespace TestSimpleMoving {
     [TestClass]
     internal static class TestSimpleMoving {
+        private const int BWidth = 6, BHeight = 3;
         private static ConsoleManager _cManager;
         private static int _curRow, _curCol, _curRowBefore, _curColBefore;
-        private const int BWidth = 6, BHeight = 3;
 
-        static void Init() {
+        private static void Init() {
             _cManager = new ConsoleManager {
                 UpdateRate = 10,
                 UsePassiveUpdate = true,
@@ -18,57 +18,65 @@ namespace TestSimpleMoving {
                 IsPaused = true
             };
             _cManager.SetWindowSize((BWidth + 1) * 8 + 2, (BHeight + 1) * 8 + 2);
-            char[,] a = new char[(BHeight + 1) * 8 + 1, (BWidth + 1) * 8 + 1];
-            for (int i = 0; i < a.GetLength(0); i++) {
-                for (int j = 0; j < a.GetLength(1); j += BWidth + 1) {
+            var a = new char[(BHeight + 1) * 8 + 1, (BWidth + 1) * 8 + 1];
+            for (var i = 0; i < a.GetLength(0); i++) {
+                for (var j = 0; j < a.GetLength(1); j += BWidth + 1)
                     if (i == 0) {
                         if (j == 0) {
                             a[i, j] = '┌';
-                            for (int k = 0; k < BWidth; k++)
+                            for (var k = 0; k < BWidth; k++)
                                 a[i, j + k + 1] = '─';
-                        } else if (j == a.GetLength(1) - 1)
+                        }
+                        else if (j == a.GetLength(1) - 1) {
                             a[i, j] = '┐';
+                        }
                         else {
                             a[i, j] = '┬';
-                            for (int k = 0; k < BWidth; k++)
+                            for (var k = 0; k < BWidth; k++)
                                 a[i, j + k + 1] = '─';
                         }
-                    } else if (i == a.GetLength(0) - 1) {
+                    }
+                    else if (i == a.GetLength(0) - 1) {
                         if (j == 0) {
                             a[i, j] = '└';
-                            for (int k = 0; k < BWidth; k++)
+                            for (var k = 0; k < BWidth; k++)
                                 a[i, j + k + 1] = '─';
-                        } else if (j == a.GetLength(1) - 1)
+                        }
+                        else if (j == a.GetLength(1) - 1) {
                             a[i, j] = '┘';
+                        }
                         else {
                             a[i, j] = '┴';
-                            for (int k = 0; k < BWidth; k++)
+                            for (var k = 0; k < BWidth; k++)
                                 a[i, j + k + 1] = '─';
                         }
-                    } else if (i % 4 == 0) {
+                    }
+                    else if (i % 4 == 0) {
                         if (j == 0) {
                             a[i, j] = '├';
-                            for (int k = 0; k < BWidth; k++)
-                                a[i, j + k + 1] = '─';
-                        } else if (j == a.GetLength(1) - 1)
-                            a[i, j] = '┤';
-                        else {
-                            a[i, j] = '┼';
-                            for (int k = 0; k < BWidth; k++)
+                            for (var k = 0; k < BWidth; k++)
                                 a[i, j + k + 1] = '─';
                         }
-                    } else {
+                        else if (j == a.GetLength(1) - 1) {
+                            a[i, j] = '┤';
+                        }
+                        else {
+                            a[i, j] = '┼';
+                            for (var k = 0; k < BWidth; k++)
+                                a[i, j + k + 1] = '─';
+                        }
+                    }
+                    else {
                         a[i, j] = '│';
                     }
-                }
             }
             _cManager.DrawPanel(0, 0, a);
-            for (int i = 0; i < a.GetLength(0); i += BHeight + 1)
+            for (var i = 0; i < a.GetLength(0); i += BHeight + 1)
                 _cManager.DrawPanel(i, 0, i, a.GetLength(1) - 1, ConsoleColor.Yellow, ConsoleColor.DarkGray);
-            for (int i = 0; i < a.GetLength(1); i += BWidth + 1)
+            for (var i = 0; i < a.GetLength(1); i += BWidth + 1)
                 _cManager.DrawPanel(0, i, a.GetLength(0) - 1, i, ConsoleColor.Yellow, ConsoleColor.DarkGray);
-            for (int i = 1; i < (BHeight + 1) * 8 + 1; i += BHeight + 1)
-                for (int j = 1; j < (BWidth + 1) * 8 + 1; j += BWidth + 1) {
+            for (var i = 1; i < (BHeight + 1) * 8 + 1; i += BHeight + 1)
+                for (var j = 1; j < (BWidth + 1) * 8 + 1; j += BWidth + 1) {
                     _cManager.DrawPanel(i, j, i + BHeight - 1, j + BWidth - 1, ConsoleColor.Green, ConsoleColor.Black);
                     _cManager.DrawPanel(i + 1, j + 2, new[,] {{'-', '-'}});
                 }
@@ -96,10 +104,10 @@ namespace TestSimpleMoving {
 
         private static void _cManager_BeforeUpdate(ConsoleManager cManager) {
             if (_curRow == _curRowBefore && _curCol == _curColBefore) return;
-            _cManager.DrawPanel(2 + _curRowBefore * (BHeight + 1), 3 + _curColBefore * (BWidth + 1), new[,] { { '-', '-' } }, ConsoleColor.Green, ConsoleColor.Black);
+            _cManager.DrawPanel(2 + _curRowBefore * (BHeight + 1), 3 + _curColBefore * (BWidth + 1), new[,] {{'-', '-'}}, ConsoleColor.Green, ConsoleColor.Black);
             _curRowBefore = _curRow;
             _curColBefore = _curCol;
-            _cManager.DrawPanel(2 + _curRowBefore * (BHeight + 1), 3 + _curColBefore * (BWidth + 1), new[,] { { '+', '+' } }, ConsoleColor.Red, ConsoleColor.Black);
+            _cManager.DrawPanel(2 + _curRowBefore * (BHeight + 1), 3 + _curColBefore * (BWidth + 1), new[,] {{'+', '+'}}, ConsoleColor.Red, ConsoleColor.Black);
         }
 
         private static void _cManager_AfterResize(ConsoleManager cManager) {
@@ -129,12 +137,13 @@ namespace TestSimpleMoving {
                     break;
             }
         }
-        
+
         [TestMethod]
         public static void Main(string[] args) {
             try {
                 Init();
-            } catch (Exception e) {
+            }
+            catch (Exception e) {
                 Console.WriteLine(e.Message);
                 Console.WriteLine("按下回车键继续...");
                 Console.ReadLine();

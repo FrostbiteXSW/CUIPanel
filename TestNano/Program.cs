@@ -1,14 +1,14 @@
-﻿using CUIPanel;
-using System;
+﻿using System;
 using System.Text;
+using CUIPanel;
 
 namespace TestNano {
-    static class Program {
+    internal static class Program {
         private static ConsoleManager _cManager;
         private static readonly StringBuilder StringBuffer = new StringBuilder();
 
-        static void Init() {
-            _cManager = new ConsoleManager() {
+        private static void Init() {
+            _cManager = new ConsoleManager {
                 IsPaused = true,
                 UsePassiveUpdate = true,
                 UpdateRate = 10,
@@ -23,12 +23,12 @@ namespace TestNano {
         }
 
         private static void CManager_KeyPressed(ConsoleManager cManager, ConsoleKeyInfo keyInfo) {
-            int row = 1;
-            int col = 0;
+            var row = 1;
+            var col = 0;
             switch (keyInfo.Key) {
                 case ConsoleKey.Backspace:
                     if (StringBuffer.Length == 0) return;
-                    for (int i = 0; i < StringBuffer.Length - 1; i++) {
+                    for (var i = 0; i < StringBuffer.Length - 1; i++) {
                         if (++col == cManager.PanelWidth) {
                             row++;
                             col = 0;
@@ -43,7 +43,7 @@ namespace TestNano {
                     StringBuffer.Remove(StringBuffer.Length - 1, 1);
                     return;
                 case ConsoleKey.Enter:
-                    for (int i = 0; i < StringBuffer.Length; i++) {
+                    for (var i = 0; i < StringBuffer.Length; i++) {
                         if (++col == cManager.PanelWidth) {
                             row++;
                             col = 0;
@@ -59,7 +59,7 @@ namespace TestNano {
                     }
                     return;
                 case ConsoleKey.Tab:
-                    for (int i = 0; i < StringBuffer.Length; i++) {
+                    for (var i = 0; i < StringBuffer.Length; i++) {
                         if (++col == cManager.PanelWidth) {
                             row++;
                             col = 0;
@@ -82,7 +82,7 @@ namespace TestNano {
                     StringBuffer.Append(" ");
                     return;
                 default:
-                    for (int i = 0; i < StringBuffer.Length; i++) {
+                    for (var i = 0; i < StringBuffer.Length; i++) {
                         if (++col == cManager.PanelWidth) {
                             row++;
                             col = 0;
@@ -119,7 +119,7 @@ namespace TestNano {
             cManager.DrawPanel(0, cManager.PanelWidth - "Provided by XIONG".Length, "Provided by XIONG");
             cManager.Title = (cManager.PanelWidth + 1).ToString() + ',' + (cManager.PanelHeight + 1);
             int row = 1, col = -1;
-            for (int i = 0; i < StringBuffer.Length; i++) {
+            for (var i = 0; i < StringBuffer.Length; i++) {
                 if (++col == cManager.PanelWidth) {
                     row++;
                     col = 0;
@@ -144,8 +144,8 @@ namespace TestNano {
             }
             cManager.SetCursorPosition(row, col + 1);
         }
-        
-        static void Main(string[] args) {
+
+        private static void Main() {
             Init();
         }
     }
